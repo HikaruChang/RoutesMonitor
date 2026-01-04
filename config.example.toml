@@ -1,0 +1,86 @@
+# RoutesMonitor 配置文件示例
+
+[global]
+# 检查间隔（秒）
+check_interval = 300 # 5分钟
+
+# 是否自动切换接口
+auto_switch = true
+
+# 切换阈值（评分差异）
+switch_threshold = 20.0
+
+# 最大允许失败次数（超过后强制切换）
+max_failures = 3
+
+# 是否管理 UCI 静态路由
+# 启用后，程序将自动更新 /etc/config/network 中的静态路由配置
+manage_uci_routes = true
+
+[network]
+# Ping 超时时间（秒）
+ping_timeout = 5
+
+# Ping 包数量
+ping_count = 4
+
+# 速度测试超时（秒）
+speed_test_timeout = 10
+
+# 速度测试大小（字节，可选）
+# speed_test_size = 1048576  # 1MB
+
+# 网络接口配置
+[[interfaces]]
+display_name = "移动宽带" # 显示名称
+enabled = true # 是否启用
+gateway = "192.168.1.1" # 网关地址（可选，留空自动检测）
+name = "wan_cm" # 接口名称（必须与系统接口名一致）
+priority = 1 # 优先级（数字越小越优先）
+table_id = 100 # 路由表 ID（用于策略路由）
+
+[[interfaces]]
+display_name = "电信宽带"
+enabled = true
+name = "wan_ct"
+priority = 2
+table_id = 101
+# gateway 留空，将从系统自动获取
+
+[[interfaces]]
+display_name = "5G热点"
+enabled = true
+name = "wan_5g"
+priority = 3
+table_id = 102
+
+# 目标 IP 配置
+[[targets]]
+address = "8.8.8.8"
+description = "Google DNS"
+weight = 1.0
+# 不作为静态路由管理
+
+[[targets]]
+address = "1.1.1.1"
+description = "Cloudflare DNS"
+weight = 1.0
+
+[[targets]]
+address = "45.128.210.197/32"
+description = "重要服务器 A"
+weight = 2.0
+# 启用静态路由管理 - 程序将在 UCI 中创建/更新此路由
+manage_as_static_route = true
+
+[[targets]]
+address = "203.0.113.50/32"
+description = "重要服务器 B"
+manage_as_static_route = true
+weight = 2.0
+
+[[targets]]
+address = "www.example.com" 
+description = "示例网站" 
+test_url = "http://www.example.com/test.bin" # 可选：用于速度测试的 URL
+weight = 1.5

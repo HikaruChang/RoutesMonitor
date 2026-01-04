@@ -1,0 +1,36 @@
+[package]
+authors = ["Your Name <your.email@example.com>"]
+description = "OpenWrt 路由监控工具 - 自动测试和切换最佳网络接口"
+edition = "2021"
+name = "routes-monitor"
+version = "0.1.0"
+
+[dependencies]
+# 异步运行时
+tokio = {version = "1.35", features = ["full"]}
+# futures 工具
+futures = "0.3"
+# HTTP 客户端用于速度测试
+reqwest = {version = "0.11", default-features = false, features = ["json", "rustls-tls"]}
+# 配置文件解析
+serde = {version = "1.0", features = ["derive"]}
+toml = "0.8"
+# 日志
+env_logger = "0.11"
+log = "0.4"
+# 错误处理
+anyhow = "1.0"
+thiserror = "1.0"
+# 命令执行
+tokio-process = "0.2"
+# IP 地址处理
+ipnetwork = "0.20"
+# 文件监控
+notify = "6.1"
+# 时间处理
+chrono = "0.4"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
