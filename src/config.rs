@@ -34,6 +34,9 @@ pub struct GlobalConfig {
     pub log_level: String,
     /// 是否启用自动切换
     pub auto_switch: bool,
+    /// 是否管理UCI静态路由（修改/etc/config/network）
+    #[serde(default)]
+    pub manage_uci_routes: bool,
 }
 
 /// 网络接口配置
@@ -137,6 +140,7 @@ impl Default for GlobalConfig {
             failure_threshold: 3,
             log_level: "info".to_string(),
             auto_switch: true,
+            manage_uci_routes: false,
         }
     }
 }

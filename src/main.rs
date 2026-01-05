@@ -221,13 +221,27 @@ async fn run_single_check(state: &AppState) -> Result<()> {
                 // 执行切换
                 info!("准备切换到接口: {}", best.interface);
 
+                // 收集所有监控目标的IP地址
+                let static_targets: Vec<String> = state
+                    .config
+                    .targets
+                    .iter()
+                    .map(|t| t.address.clone())
+                    .collect();
+
+                let static_targets_opt = if !static_targets.is_empty() {
+                    Some(static_targets.as_slice())
+                } else {
+                    None
+                };
+
                 let mut manager = state.manager.write().await;
 
                 match manager
                     .switch_to_interface(
                         interface_config,
-                        false, // 不再管理UCI路由
-                        None,
+                        state.config.global.manage_uci_routes,
+                        static_targets_opt,
                     )
                     .await
                 {

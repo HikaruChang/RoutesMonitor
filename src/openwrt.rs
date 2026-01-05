@@ -64,9 +64,8 @@ impl OpenWrtManager {
         self.setup_policy_routing(interface).await?;
         self.set_default_gateway(interface).await?;
 
-        // 如果启用了 UCI 路由管理
+        // 使用 UCI 配置管理静态路由（持久化到 /etc/config/network）
         if manage_uci_routes {
-            // 只更新被监控的目标路由，不修改其他静态路由
             if let Some(targets) = static_route_targets {
                 self.manage_static_routes(targets, &interface.name).await?;
             }
@@ -351,6 +350,38 @@ impl OpenWrtManager {
         debug!("路由配置已备份，共 {} 字节", routes.len());
 
         Ok(routes)
+    }
+
+    /// 使用 ip route 命令管理静态路由（不持久化）
+    /// 用于动态切换监控目标IP的路由，不修改UCI配置
+    async fn manage_ip_static_routes(&self, targets: &[String], interface: &str) -> Result<()> {
+        info!("更新静态IP路由到接口: {}", interface);
+
+        for target in targets {
+            // 删除旧路由（如果存在）
+            let _ = Command::new("ip")
+                .args(&["route", "del", target])
+                .output()
+                .await;
+
+            // 添加新路由
+            let output = Command::new("ip")
+                .args(&["route", "add", target, "dev", interface])
+                .output()
+                .await
+                .context(format!("添加路由 {} 失败", target))?;
+
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                if !stderr.contains("File exists") {
+                    warn!("添加路由 {} 到 {} 失败: {}", target, interface, stderr);
+                }
+            } else {
+                info!("已添加路由: {} -> {}", target, interface);
+            }
+        }
+
+        Ok(())
     }
 
     /// 使用 UCI 持久化配置（OpenWrt 特有）
