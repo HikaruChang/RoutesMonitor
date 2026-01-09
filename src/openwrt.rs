@@ -40,6 +40,9 @@ impl OpenWrtManager {
     }
 
     /// 切换到指定接口
+    ///
+    /// 重要：此方法只修改 UCI 配置并重载网络，不直接操作 ip route
+    /// 这样可以避免中间状态导致的网络中断
     pub async fn switch_to_interface(
         &mut self,
         interface: &NetworkInterface,
@@ -59,19 +62,13 @@ impl OpenWrtManager {
             }
         }
 
-        // 执行切换步骤
-        self.clear_old_routes().await?;
-        self.setup_policy_routing(interface).await?;
-        self.set_default_gateway(interface).await?;
-
         // 使用 UCI 配置管理静态路由（持久化到 /etc/config/network）
+        // 只修改 UCI 配置，让 OpenWrt 自己处理路由
         if manage_uci_routes {
             if let Some(targets) = static_route_targets {
                 self.manage_static_routes(targets, &interface.name).await?;
             }
         }
-
-        self.flush_route_cache().await?;
 
         // 更新当前接口
         self.current_interface = Some(interface.name.clone());
@@ -311,27 +308,50 @@ impl OpenWrtManager {
     }
 
     /// 验证接口切换是否成功
+    /// 检查被监控的 UCI 静态路由是否已正确配置到目标接口
     pub async fn verify_switch(&self, interface: &NetworkInterface) -> Result<bool> {
         info!("验证接口切换: {}", interface.name);
 
-        // 检查默认路由是否通过指定接口
-        let output = Command::new("ip")
-            .args(&["route", "show", "default"])
-            .output()
-            .await
-            .context("获取默认路由失败")?;
+        let physical_interface = Self::convert_to_physical_interface(&interface.name);
 
-        let route_info = String::from_utf8_lossy(&output.stdout);
-        let is_correct = route_info.contains(&format!("dev {}", interface.name));
+        // 检查 UCI 静态路由是否已配置到目标接口
+        let routes = self.get_uci_static_routes().await?;
 
-        if is_correct {
-            info!("接口切换验证成功: {}", interface.name);
-        } else {
-            warn!("接口切换验证失败: {}", interface.name);
-            debug!("当前默认路由: {}", route_info);
+        if routes.is_empty() {
+            info!("没有 UCI 静态路由需要验证");
+            return Ok(true);
         }
 
-        Ok(is_correct)
+        // 只验证由本程序管理的路由（route_ 前缀的命名路由）
+        let managed_routes: Vec<_> = routes
+            .iter()
+            .filter(|(section, _, _)| section.starts_with("route_"))
+            .collect();
+
+        if managed_routes.is_empty() {
+            info!("没有本程序管理的路由需要验证");
+            return Ok(true);
+        }
+
+        let all_correct = managed_routes
+            .iter()
+            .all(|(_, _, iface)| iface == &physical_interface);
+
+        if all_correct {
+            info!(
+                "接口切换验证成功: {} (物理接口: {})",
+                interface.name, physical_interface
+            );
+        } else {
+            warn!("接口切换验证失败: 部分路由未指向 {}", physical_interface);
+            for (section, target, iface) in &managed_routes {
+                if *iface != physical_interface {
+                    warn!("  路由 {} ({}) 仍指向 {}", section, target, iface);
+                }
+            }
+        }
+
+        Ok(all_correct)
     }
 
     /// 备份当前路由配置

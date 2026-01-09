@@ -72,9 +72,12 @@ impl NetworkTester {
             interface.name, target.address, target.description
         );
 
+        // 移除 CIDR 后缀（如 /32）以进行 ping 测试
+        let ping_target = target.address.split('/').next().unwrap_or(&target.address);
+
         // 进行 ping 测试（4次）并解析结果
         let (reachable, latency_ms, packet_loss) = self
-            .ping_test_with_stats(&interface.name, &target.address, 4)
+            .ping_test_with_stats(&interface.name, ping_target, 4)
             .await;
 
         // 如果配置了测试 URL，进行速度测试
